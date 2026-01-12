@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Panel Creadora ✨</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Bootstrap -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Custom CSS -->
+<link rel="stylesheet" href="assets/css/custom.css">
+</head>
+
+<body class="bg-pink-50 text-gray-700 min-h-screen flex flex-col">
+
+<!-- HEADER -->
+<nav class="navbar navbar-expand-lg bg-white shadow-md sticky-top">
+  <div class="container d-flex justify-content-between align-items-center">
+    <a class="navbar-brand fw-bold text-pink-500 text-2xl" href="#">✨ Panel Creadora ✨</a>
+    <!-- Botón de ayuda -->
+    <button id="btnHelp" class="btn btn-outline-pink fw-bold rounded-full px-3 py-1 text-pink-500 hover:bg-pink-100 transition">?</button>
+  </div>
+</nav>
+
+<!-- MAIN DASHBOARD -->
+<main class="container flex-grow px-4 py-8">
+
+  <!-- LOGIN -->
+  <div id="loginBox" class="max-w-2xl mx-3 sm:mx-auto mt-16 p-8 bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl">
+    <h2 class="text-center text-4xl fw-bold text-pink-600 mb-6">Acceso Privado</h2>
+    <div class="mb-4">
+      <label class="form-label small">Correo</label>
+      <input type="email" id="email" class="form-control rounded-full px-4 py-3" placeholder="correo@ejemplo.com" required>
+    </div>
+    <div class="mb-5">
+      <label class="form-label small">Contraseña</label>
+      <input type="password" id="password" class="form-control rounded-full px-4 py-3" placeholder="••••••••" required>
+    </div>
+    <button id="btnLogin" class="btn btn-gradient w-100 py-3 text-white font-semibold rounded-full shadow-md hover:scale-105 transition">Entrar ✨</button>
+  </div>
+
+  <!-- PANEL ADMIN -->
+  <div id="adminPanel" class="d-none mt-12 mx-3 sm:mx-auto">
+    <div class="row g-6">
+
+      <!-- NUEVA PULSERA -->
+      <div class="col-12 col-lg-4 mb-6">
+        <div class="p-6 bg-white/90 backdrop-blur-sm rounded-3xl shadow-lg hover:shadow-2xl transition">
+          <h4 class="fw-bold text-pink-500 mb-4 text-center text-xl">Nueva Pulserita 💖</h4>
+          <input type="text" id="titulo" class="form-control mb-3 rounded-full px-4 py-3" placeholder="Nombre de la pulsera" maxlength="20" required>
+          <textarea id="descripcion" class="form-control mb-3 rounded-xl px-4 py-3" placeholder="Descripción" rows="3" required></textarea>
+          <input type="number" id="precio" class="form-control mb-3 rounded-full px-4 py-3" placeholder="Precio" step="0.01" min="0" required>
+          <input type="file" id="imagen" class="form-control mb-4 rounded-full" accept=".jpg,.jpeg,.png" required>
+          <button id="btnSubir" class="btn btn-pink-gradient w-100 py-3 rounded-full text-white shadow-md hover:scale-105 transition">Subir pulsera 💖</button>
+        </div>
+      </div>
+
+      <!-- GALERÍA EXISTENTE -->
+      <div class="col-12 col-lg-8 mb-6">
+        <div class="p-6 bg-white/90 backdrop-blur-sm rounded-3xl shadow-lg hover:shadow-2xl transition">
+          <h4 class="fw-bold text-pink-500 mb-4 text-center text-xl">Pulseritas Existentes 💖</h4>
+          <div id="adminGallery" class="row g-4"></div>
+          <!-- BOTÓN CARGAR MÁS -->
+          <div class="text-center mt-3">
+            <button id="loadMoreAdmin" class="btn btn-pink-gradient w-50 py-2 rounded-full text-white shadow-md">Cargar más 💖</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- MANUAL DE USO (MODAL) -->
+<div id="manualModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50 p-4">
+  <div class="bg-white rounded-3xl p-6 max-w-xl w-full relative shadow-2xl">
+    <button id="closeManual" class="absolute top-3 right-3 text-pink-500 fw-bold text-xl hover:text-pink-700 transition">✕</button>
+    <h3 class="text-2xl fw-bold text-pink-500 mb-4 text-center">Manual de Uso 💕</h3>
+    <div class="space-y-3 text-gray-700 text-sm sm:text-base">
+      <p>Bienvenida a tu panel de creadora. Aquí puedes:</p>
+      <ul class="list-disc list-inside">
+        <li>Agregar nuevas pulseritas con nombre, descripción, precio e imagen.</li>
+        <li>Ver todas las pulseras existentes y editarlas si es necesario.</li>
+        <li>Eliminar pulseras que ya no quieras mostrar.</li>
+      </ul>
+      <p>Importante:</p>
+      <ul class="list-disc list-inside">
+        <li>No subir imágenes mayores a <strong>2MB</strong> para evitar errores.</li>
+        <li>No subir videos, PDFs u otros formatos; solo imágenes JPG/PNG.</li>
+        <li>No compartas tu correo o contraseña con nadie.</li>
+        <li>Mantén tu cuenta segura para proteger tu contenido.</li>
+      </ul>
+      <p>¡Diviértete creando y mostrando tus pulseritas 💖!</p>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-6 bg-gradient-to-r from-pink-300 to-rose-300 text-white mt-auto font-semibold">
+  Hecho con 💕 por ti
+</footer>
+
+<!-- SCRIPTS -->
+<script type="module" src="assets/js/firebase-config.js"></script>
+<script type="module" src="assets/js/auth.js"></script>
+<script type="module" src="assets/js/upload.js"></script>
+
+<script type="module">
+  import { initGallery } from './assets/js/adminGallery.js';
+  initGallery("adminGallery", true);
+</script>
+
+<script>
+// Mostrar/ocultar manual
+const btnHelp = document.getElementById("btnHelp");
+const manualModal = document.getElementById("manualModal");
+const closeManual = document.getElementById("closeManual");
+
+btnHelp.addEventListener("click", () => manualModal.classList.remove("hidden"));
+closeManual.addEventListener("click", () => manualModal.classList.add("hidden"));
+
+// ---------------- VALIDACIONES ANTES DE SUBIR ----------------
+const btnSubir = document.getElementById("btnSubir");
+btnSubir.addEventListener("click", async () => {
+  const nombre = document.getElementById("titulo").value.trim();
+  const descripcion = document.getElementById("descripcion").value.trim();
+  const precio = parseFloat(document.getElementById("precio").value);
+  const imagen = document.getElementById("imagen").files[0];
+
+  if (!nombre || !descripcion || !precio || !imagen) return alert("Completa todos los campos");
+
+  if (nombre.length > 20) return alert("El título no puede exceder 20 caracteres");
+
+  if (descripcion.split(/\s+/).length > 50) return alert("La descripción no puede exceder 50 palabras");
+
+  if (isNaN(precio) || precio <= 0) return alert("El precio debe ser un número positivo");
+
+  if (imagen.size > 2 * 1024 * 1024) return alert("La imagen no debe superar 2MB");
+
+  const ext = imagen.name.split('.').pop().toLowerCase();
+  if (!["jpg","jpeg","png"].includes(ext)) return alert("Solo se permiten imágenes JPG o PNG");
+});
+</script>
+
+<style>
+/* Botones con degradado */
+.btn-gradient {
+  background: linear-gradient(90deg, #fbc2eb, #a6c1ee);
+}
+.btn-gradient:hover {
+  background: linear-gradient(90deg, #a6c1ee, #fbc2eb);
+}
+.btn-pink-gradient {
+  background: linear-gradient(90deg, #f797a6, #ffd2e2);
+}
+.btn-pink-gradient:hover {
+  background: linear-gradient(90deg, #ffd2e2, #f797a6);
+}
+
+/* Modal */
+#manualModal {
+  transition: all 0.3s ease-in-out;
+}
+</style>
+
+</body>
+</html>

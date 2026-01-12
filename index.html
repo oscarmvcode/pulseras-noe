@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Pulseritas Artesanales Noe✨</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Bootstrap -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Custom CSS -->
+<link rel="stylesheet" href="assets/css/custom.css">
+</head>
+
+<body class="bg-pink-50 text-gray-700 min-h-screen flex flex-col">
+
+<!-- NAV -->
+<nav class="navbar navbar-expand-lg bg-white shadow-md sticky-top">
+  <div class="container">
+    <a class="navbar-brand fw-bold text-pink-500 text-2xl" href="index.html">Pulseritas Noe✨</a>
+    <ul class="navbar-nav ms-auto">
+      <li class="nav-item">
+        <a class="nav-link fw-semibold" href="contact.html">Contacto</a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="flex-grow pt-5 px-3 sm:px-4">
+
+  <!-- HERO -->
+  <section class="text-center py-20 sm:py-24 bg-gradient-to-r from-pink-300 to-rose-300 rounded-2xl mx-1 sm:mx-0">
+    <h1 class="text-4xl sm:text-5xl font-bold text-white mb-3 sm:mb-4">Pulseritas hechas con amor 💕</h1>
+    <p class="text-white text-base sm:text-lg opacity-90">Diseños únicos • Hechos a mano</p>
+  </section>
+
+  <!-- GALERÍA -->
+  <section class="container my-6 sm:my-8 px-1 sm:px-0">
+    <h2 class="text-center text-2xl sm:text-3xl fw-bold mb-5 sm:mb-6 text-pink-600">Galería 💖</h2>
+    <div id="galeria" class="row g-3 g-sm-4">
+      <!-- Las tarjetas se llenan dinámicamente -->
+    </div>
+    <!-- BOTÓN CARGAR MÁS -->
+    <div class="text-center">
+  <button id="loadMoreBtn" class="btn btn-loadmore w-50 py-2 rounded-full text-white shadow-md my-3">Cargar más 💖</button>
+</div>
+
+  </section>
+</main>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50 p-2">
+  <img id="lightbox-img" src="" class="max-w-full max-h-full rounded-2xl shadow-2xl animate-fadeIn">
+</div>
+
+<!-- FOOTER -->
+<footer class="text-center py-6 bg-gradient-to-r from-pink-300 to-rose-300 text-white font-semibold mt-auto">
+  Hecho con 💕 por Noe pulseritas
+</footer>
+
+<script type="module">
+import { db } from "./assets/js/firebase-config.js";
+import { collection, query, orderBy, limit, startAfter, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// ---------------- LIGHTBOX ----------------
+const lightbox = document.getElementById("lightbox");
+const lightboxImg = document.getElementById("lightbox-img");
+
+document.getElementById("galeria").addEventListener("click", e => {
+  if (e.target.tagName === "IMG") {
+    lightboxImg.src = e.target.src;
+    lightbox.classList.remove("hidden");
+  }
+});
+
+lightbox.addEventListener("click", () => lightbox.classList.add("hidden"));
+
+// ---------------- PAGINACIÓN ----------------
+const galleryContainer = document.getElementById("galeria");
+const loadMoreBtn = document.getElementById("loadMoreBtn");
+const pageSize = 5; // 5 pulseritas por carga
+let lastVisible = null;
+let isFetching = false;
+
+const cargarPulseras = async () => {
+  if (isFetching) return;
+  isFetching = true;
+
+  let q = query(collection(db, "pulseras"), orderBy("createdAt", "desc"), limit(pageSize));
+  if (lastVisible) q = query(collection(db, "pulseras"), orderBy("createdAt", "desc"), startAfter(lastVisible), limit(pageSize));
+
+  const snapshot = await getDocs(q);
+  if (!snapshot.empty) lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
+  snapshot.forEach(docSnap => {
+    const data = docSnap.data();
+    const precioForm = Number(data.precio).toFixed(2);
+
+    const card = document.createElement("div");
+    card.className = "col-md-6 col-lg-4 mb-4";
+    card.innerHTML = `
+      <div class="card shadow-lg rounded-4 border-0 h-100 position-relative cursor-pointer">
+        <img src="${data.imagenURL}" class="card-img-top rounded-top-4" alt="${data.nombre}" style="height:180px; object-fit:cover;">
+        <div class="card-body text-center">
+          <h6 class="fw-bold text-pink-600 mb-1">${data.nombre}</h6>
+          <p class="text-muted small mb-1">${data.descripcion}</p>
+          <p class="fs-6 fw-bold text-rose-500 mb-2">$${precioForm}</p>
+        </div>
+      </div>
+    `;
+
+    // Lightbox
+    card.querySelector("img").addEventListener("click", () => {
+      lightboxImg.src = data.imagenURL;
+      lightbox.classList.remove("hidden");
+    });
+
+    galleryContainer.appendChild(card);
+  });
+
+  // Ocultar botón si no hay más
+  if (snapshot.size < pageSize) loadMoreBtn.style.display = "none";
+  isFetching = false;
+};
+
+// Click "Cargar más"
+loadMoreBtn.addEventListener("click", () => {
+  cargarPulseras();
+});
+
+// Carga inicial
+cargarPulseras();
+</script>
+
+<style>
+/* Animación fade in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Tarjetas de galería hover */
+#galeria .card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+#galeria .card:hover {
+  transform: scale(1.03);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+}
+
+/* Adaptaciones móviles */
+@media (max-width: 576px) {
+  #galeria .col-md-4, #galeria .col-lg-3 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+</style>
+
+</body>
+</html>
