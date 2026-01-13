@@ -10,14 +10,20 @@ import {
   updateDoc,
   deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { ref, deleteObject, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+import {
+  ref,
+  deleteObject,
+  uploadBytes,
+  getDownloadURL
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 /* =======================
-   INDEXED DB CACHE
+   INDEXED DB CACHE + TTL
 ======================= */
 const DB_NAME = "PulseritasCacheDB";
 const STORE_NAME = "pulseras";
 const DB_VERSION = 1;
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 horas
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -36,7 +42,21 @@ async function getCache(key) {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
     const req = store.get(key);
-    req.onsuccess = () => res(req.result?.data || null);
+
+    req.onsuccess = () => {
+      const result = req.result;
+      if (!result) return res(null);
+
+      // ⏱ TTL
+      if (Date.now() - result.time > CACHE_TTL) {
+        const delTx = db.transaction(STORE_NAME, "readwrite");
+        delTx.objectStore(STORE_NAME).delete(key);
+        return res(null);
+      }
+
+      res(result.data);
+    };
+
     req.onerror = () => res(null);
   });
 }
@@ -44,7 +64,11 @@ async function getCache(key) {
 async function setCache(key, data) {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, "readwrite");
-  tx.objectStore(STORE_NAME).put({ key, data, time: Date.now() });
+  tx.objectStore(STORE_NAME).put({
+    key,
+    data,
+    time: Date.now()
+  });
 }
 
 async function clearUserCache(userKey) {
@@ -52,10 +76,32 @@ async function clearUserCache(userKey) {
   const tx = db.transaction(STORE_NAME, "readwrite");
   const store = tx.objectStore(STORE_NAME);
   const req = store.openCursor();
+
   req.onsuccess = e => {
     const cursor = e.target.result;
     if (cursor) {
-      if (cursor.key.startsWith(userKey)) store.delete(cursor.key);
+      if (cursor.key.startsWith(userKey)) {
+        store.delete(cursor.key);
+      }
+      cursor.continue();
+    }
+  };
+}
+
+// 🧹 Limpieza global
+async function cleanExpiredCache() {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, "readwrite");
+  const store = tx.objectStore(STORE_NAME);
+  const req = store.openCursor();
+  const now = Date.now();
+
+  req.onsuccess = e => {
+    const cursor = e.target.result;
+    if (cursor) {
+      if (now - cursor.value.time > CACHE_TTL) {
+        store.delete(cursor.key);
+      }
       cursor.continue();
     }
   };
@@ -68,9 +114,13 @@ export function initGallery(containerId, isAdmin = false) {
   const galleryContainer = document.getElementById(containerId);
   if (!galleryContainer) return;
 
-  // ---------- LIGHTBOX ----------
+  // Ejecutar autolimpieza
+  cleanExpiredCache();
+
+  /* ---------- LIGHTBOX ---------- */
   let lightbox = document.getElementById("lightbox");
   let lightboxImg = document.getElementById("lightbox-img");
+
   if (!lightbox) {
     lightbox = document.createElement("div");
     lightbox.id = "lightbox";
@@ -80,10 +130,12 @@ export function initGallery(containerId, isAdmin = false) {
       `<img id="lightbox-img" class="max-h-full max-w-full rounded-xl shadow-2xl">`;
     document.body.appendChild(lightbox);
     lightboxImg = document.getElementById("lightbox-img");
-    lightbox.addEventListener("click", () => lightbox.classList.add("hidden"));
+    lightbox.addEventListener("click", () =>
+      lightbox.classList.add("hidden")
+    );
   }
 
-  // ---------- PAGINACIÓN ----------
+  /* ---------- PAGINACIÓN ---------- */
   const pageSize = 5;
   let lastCreatedAt = null;
   let isFetching = false;
@@ -101,7 +153,7 @@ export function initGallery(containerId, isAdmin = false) {
     galleryContainer.parentElement.appendChild(loadMoreBtn);
   }
 
-  // ---------- RENDER ----------
+  /* ---------- RENDER ---------- */
   function renderCard(data, id, fragment) {
     const precioForm = Number(data.precio).toFixed(2);
     const card = document.createElement("div");
@@ -127,10 +179,10 @@ export function initGallery(containerId, isAdmin = false) {
             ` : ""}
           </div>
           <div class="edit-mode d-none text-start">
-            <input type="text" class="form-control mb-2 form-nombre" value="${data.nombre}" placeholder="Nombre">
-            <textarea class="form-control mb-2 form-descripcion" rows="2" placeholder="Descripción">${data.descripcion}</textarea>
-            <input type="number" class="form-control mb-2 form-precio" value="${data.precio}" placeholder="Precio" step="0.01" min="0">
-            <input type="file" class="form-control mb-2 form-imagen" accept="image/jpeg,image/png">
+            <input type="text" class="form-control mb-2 form-nombre" value="${data.nombre}">
+            <textarea class="form-control mb-2 form-descripcion">${data.descripcion}</textarea>
+            <input type="number" class="form-control mb-2 form-precio" value="${data.precio}" step="0.01">
+            <input type="file" class="form-control mb-2 form-imagen">
             <div class="text-end">
               <button class="btn btn-sm btn-outline-success btn-save me-1">Guardar</button>
               <button class="btn btn-sm btn-outline-secondary btn-cancel">Cancelar</button>
@@ -140,117 +192,80 @@ export function initGallery(containerId, isAdmin = false) {
       </div>
     `;
 
-    // ---------- LIGHTBOX ----------
     card.querySelector("img").onclick = () => {
       lightboxImg.src = data.imagenURL;
       lightbox.classList.remove("hidden");
     };
 
-    // ---------- ELIMINAR ----------
+    /* ---------- ELIMINAR ---------- */
     if (isAdmin && card.querySelector(".btn-delete")) {
       card.querySelector(".btn-delete").onclick = async () => {
         if (!confirm("¿Eliminar?")) return;
         try {
           if (data.imagePath) await deleteObject(ref(storage, data.imagePath));
-        } catch (err) {
-          console.warn("No se pudo borrar la imagen antigua:", err.message);
-        }
+        } catch {}
         await deleteDoc(doc(db, "pulseras", id));
         card.remove();
       };
     }
 
-    // ---------- EDITAR INLINE ----------
+    /* ---------- EDITAR ---------- */
     if (isAdmin && card.querySelector(".btn-edit")) {
       const displayDiv = card.querySelector(".display-mode");
       const editDiv = card.querySelector(".edit-mode");
-      const btnEdit = card.querySelector(".btn-edit");
-      const btnSave = card.querySelector(".btn-save");
-      const btnCancel = card.querySelector(".btn-cancel");
-      const inputImagen = card.querySelector(".form-imagen");
 
-      btnEdit.onclick = () => {
+      card.querySelector(".btn-edit").onclick = () => {
         displayDiv.classList.add("d-none");
         editDiv.classList.remove("d-none");
       };
 
-      btnCancel.onclick = () => {
+      card.querySelector(".btn-cancel").onclick = () => {
         editDiv.classList.add("d-none");
         displayDiv.classList.remove("d-none");
       };
 
-      btnSave.onclick = async () => {
+      card.querySelector(".btn-save").onclick = async () => {
         const nombreNuevo = card.querySelector(".form-nombre").value.trim();
         const descripcionNueva = card.querySelector(".form-descripcion").value.trim();
         const precioNuevo = parseFloat(card.querySelector(".form-precio").value);
-        const nuevaImagen = inputImagen.files[0];
+        const nuevaImagen = card.querySelector(".form-imagen").files[0];
 
-        if (!nombreNuevo || !descripcionNueva || isNaN(precioNuevo) || precioNuevo <= 0) {
-          return alert("Completa todos los campos correctamente");
+        if (!nombreNuevo || !descripcionNueva || isNaN(precioNuevo)) return;
+
+        const updatedData = {
+          nombre: nombreNuevo,
+          descripcion: descripcionNueva,
+          precio: Number(precioNuevo.toFixed(2))
+        };
+
+        if (nuevaImagen) {
+          if (data.imagePath) await deleteObject(ref(storage, data.imagePath));
+          const imagePath = `pulseras/${Date.now()}_${nuevaImagen.name}`;
+          const imgRef = ref(storage, imagePath);
+          await uploadBytes(imgRef, nuevaImagen);
+          updatedData.imagenURL = await getDownloadURL(imgRef);
+          updatedData.imagePath = imagePath;
         }
 
-        try {
-          let updatedData = {
-            nombre: nombreNuevo,
-            descripcion: descripcionNueva,
-            precio: Number(precioNuevo.toFixed(2))
-          };
-
-          // Subir nueva imagen solo si se seleccionó
-          if (nuevaImagen) {
-            try {
-              if (data.imagePath) await deleteObject(ref(storage, data.imagePath));
-            } catch (err) {
-              console.warn("No se pudo borrar la imagen antigua:", err.message);
-            }
-
-            const imagePath = `pulseras/${Date.now()}_${nuevaImagen.name}`;
-            const imgRef = ref(storage, imagePath);
-            await uploadBytes(imgRef, nuevaImagen);
-            const imagenURL = await getDownloadURL(imgRef);
-
-            updatedData.imagenURL = imagenURL;
-            updatedData.imagePath = imagePath;
-
-            // Actualizamos objeto original para futuras ediciones
-            data.imagenURL = imagenURL;
-            data.imagePath = imagePath;
-          }
-
-          await updateDoc(doc(db, "pulseras", id), updatedData);
-
-          // Actualizar card visualmente
-          card.querySelector(".display-mode h6").textContent = updatedData.nombre;
-          card.querySelector(".display-mode p:nth-of-type(1)").textContent = updatedData.descripcion;
-          card.querySelector(".display-mode p:nth-of-type(2)").textContent = `$${updatedData.precio.toFixed(2)}`;
-          if (updatedData.imagenURL) card.querySelector("img").src = updatedData.imagenURL;
-
-          editDiv.classList.add("d-none");
-          displayDiv.classList.remove("d-none");
-
-          alert("Pulsera actualizada 💖");
-        } catch (err) {
-          console.error(err);
-          alert("Error al actualizar");
-        }
+        await updateDoc(doc(db, "pulseras", id), updatedData);
+        clearUserCache(userKey);
+        location.reload();
       };
     }
 
     fragment.appendChild(card);
   }
 
-  // ---------- LOAD ----------
+  /* ---------- LOAD ---------- */
   const cargarPulseras = async () => {
     if (isFetching) return;
     isFetching = true;
 
     const fragment = document.createDocumentFragment();
 
-    // 🧠 Cache solo para público
     if (!isAdmin) {
       const cacheKey = `${userKey}_page_${currentPage}`;
       const cached = await getCache(cacheKey);
-
       if (cached) {
         cached.items.forEach(i => renderCard(i.data, i.id, fragment));
         galleryContainer.appendChild(fragment);
@@ -261,7 +276,6 @@ export function initGallery(containerId, isAdmin = false) {
       }
     }
 
-    // 🔥 Firebase query real
     let q = query(
       collection(db, "pulseras"),
       orderBy("createdAt", "desc"),
@@ -280,35 +294,26 @@ export function initGallery(containerId, isAdmin = false) {
     const snapshot = await getDocs(q);
     if (snapshot.empty) {
       loadMoreBtn.style.display = "none";
-      isFetching = false;
       return;
     }
 
     const items = [];
     snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      items.push({ id: docSnap.id, data });
-      renderCard(data, docSnap.id, fragment);
+      items.push({ id: docSnap.id, data: docSnap.data() });
+      renderCard(docSnap.data(), docSnap.id, fragment);
     });
 
     galleryContainer.appendChild(fragment);
     lastCreatedAt = snapshot.docs[snapshot.docs.length - 1].data().createdAt;
 
-    // 💾 Guardar cache solo público
     if (!isAdmin) {
-      const cacheKey = `${userKey}_page_${currentPage}`;
-      await setCache(cacheKey, { items, lastCreatedAt });
+      await setCache(`${userKey}_page_${currentPage}`, { items, lastCreatedAt });
     }
 
     currentPage++;
     isFetching = false;
-
-    // 🔥 Precarga para usuarios públicos
-    if (!isAdmin && "requestIdleCallback" in window) {
-      requestIdleCallback(() => cargarPulseras(), { timeout: 1500 });
-    }
   };
 
-  if (loadMoreBtn) loadMoreBtn.onclick = cargarPulseras;
+  loadMoreBtn.onclick = cargarPulseras;
   cargarPulseras();
 }
