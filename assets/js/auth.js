@@ -1,48 +1,76 @@
 // assets/js/auth.js
 import { auth } from "./firebase-config.js";
-import { signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import {
+  signInWithEmailAndPassword,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+// 🔥 Carga diferida de la galería (mejora tiempos)
+let galleryInitialized = false;
+let initGalleryFn = null;
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Seleccionamos elementos del DOM
+  // Referencias DOM (una sola vez)
   const btnLogin = document.getElementById("btnLogin");
   const emailInput = document.getElementById("email");
   const passwordInput = document.getElementById("password");
   const loginBox = document.getElementById("loginBox");
   const adminPanel = document.getElementById("adminPanel");
 
-  // Si no existe el botón de login, salimos
-  if (!btnLogin) return;
+  if (!btnLogin || !loginBox || !adminPanel) return;
 
-  // EVENTO LOGIN
+  /* ======================
+     LOGIN
+  ====================== */
   btnLogin.addEventListener("click", async (e) => {
     e.preventDefault();
 
-    const email = emailInput?.value.trim();
-    const password = passwordInput?.value.trim();
+    const email = emailInput.value.trim();
+    const password = passwordInput.value.trim();
 
-    if (!email || !password) return alert("Completa correo y contraseña");
+    if (!email || !password) {
+      alert("Completa correo y contraseña");
+      return;
+    }
+
+    btnLogin.disabled = true;
+    btnLogin.textContent = "Entrando...";
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      console.log("Login correcto");
+      // onAuthStateChanged se encargará del resto
     } catch (err) {
       console.error(err);
       alert("Correo o contraseña incorrectos");
+    } finally {
+      btnLogin.disabled = false;
+      btnLogin.textContent = "Entrar ✨";
     }
   });
 
-  // ON AUTH STATE CHANGE
-  onAuthStateChanged(auth, (user) => {
-    if (!loginBox || !adminPanel) return;
-
+  /* ======================
+     AUTH STATE
+  ====================== */
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
-      // Usuario logueado → ocultamos login y mostramos panel
+      // Mostrar panel
       loginBox.classList.add("d-none");
       adminPanel.classList.remove("d-none");
+
+      // 🔥 Import dinámico → JS solo se carga si hay admin
+      if (!galleryInitialized) {
+        const module = await import("./adminGallery.js");
+        initGalleryFn = module.initGallery;
+
+        initGalleryFn("adminGallery", true);
+        galleryInitialized = true;
+      }
     } else {
-      // No hay usuario → mostramos login y ocultamos panel
+      // Mostrar login
       loginBox.classList.remove("d-none");
       adminPanel.classList.add("d-none");
+
+      galleryInitialized = false;
     }
   });
 });

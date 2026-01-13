@@ -109,10 +109,6 @@
 <script type="module" src="assets/js/auth.js"></script>
 <script type="module" src="assets/js/upload.js"></script>
 
-<script type="module">
-  import { initGallery } from './assets/js/adminGallery.js';
-  initGallery("adminGallery", true);
-</script>
 
 <script>
 // Mostrar/ocultar manual
@@ -131,7 +127,7 @@ btnSubir.addEventListener("click", async () => {
   const precio = parseFloat(document.getElementById("precio").value);
   const imagen = document.getElementById("imagen").files[0];
 
-  if (!nombre || !descripcion || !precio || !imagen) return alert("Completa todos los campos");
+if (!nombre || !descripcion || !imagen || isNaN(precio)) return alert("Completa todos los campos correctamente");
 
   if (nombre.length > 20) return alert("El título no puede exceder 20 caracteres");
 
